@@ -1,113 +1,169 @@
 
 import React, { useState, useEffect } from 'react';
-import { Home, CheckCircle, User as UserIcon, Store, FileText, BarChart3, Users, ShieldCheck } from 'lucide-react';
-import { ScreenName } from './types';
+import { Home, User as UserIcon, Store, FileText, Loader2 } from 'lucide-react';
+import { ScreenName, User, Product, Order, Review, Notification, Report } from './types';
+
+// Auth
 import { LoginScreen, SignupScreen, ForgotPasswordScreen, VerificationScreen, NewPasswordScreen } from './components/AuthScreens';
-import { HomeScreen, UserProfileScreen, PartnerProfileScreen, NotificationScreen, EditProfileScreen, ChangePasswordScreen, NotificationSettingsScreen, AddAddressScreen, HelpScreen } from './components/AppScreens';
-import { QualityCheckScreen } from './components/QualityCheck';
-import { PartnerDashboard, PartnerTransactions, UploadProduct, SuccessScreen, PartnerInventory } from './components/PartnerScreens';
-import { AdminDashboard, AdminUsers, AdminProducts, AdminReports, AdminSettings, AdminSidebar } from './components/AdminScreens';
-import { MapViewScreen, PartnerDetailScreen, ImpactReportScreen, ReservationSuccessScreen, ReservationFormScreen, HistoryScreen, ExploreScreen, LocationSelectScreen, CreateRequestScreen } from './components/UserFeatureScreens';
+
+// Domain: Penerima (Localized)
+import { LayarBeranda } from './components/Penerima/LayarBeranda';
+import { LayarProfilPenerima } from './components/Penerima/LayarProfil';
+import { LayarEksplorasi } from './components/Penerima/LayarEksplorasi';
+import { LayarDetailMitra, LayarFormReservasi, LayarSuksesReservasi } from './components/Penerima/LayarDetailDanReservasi';
+import { LayarRiwayatPesanan, LayarRiwayatUlasan, LayarLaporanDampak } from './components/Penerima/LayarAktivitas';
+import { LayarPilihLokasi, LayarBuatPermintaan, LayarPeta } from './components/Penerima/LayarLokasiDanRequest';
+import { LayarLaporProduk } from './components/Penerima/LayarLaporan';
+
+// Domain: Mitra
+import { LayarProfilMitra } from './components/Mitra/LayarProfil';
+import { LayarDashboardMitra, LayarTransaksiMitra } from './components/Mitra/LayarDashboard';
+import { LayarInventoryMitra, LayarUploadProduk, LayarBerhasilUpload } from './components/Mitra/LayarInventory';
+import { LayarQualityCheck } from './components/Mitra/LayarQualityCheck';
+
+// Domain: Admin
+import { LayarDashboardAdmin, LayarPengaturanSistem, SidebarAdmin } from './components/Admin/LayarUtama';
+import { LayarModerasiLaporan, LayarKelolaPengguna, LayarKelolaProduk } from './components/Admin/LayarManajemen';
+
+// Shared
+import { LayarEditProfil, LayarNotifikasi, LayarFAQ } from './components/Umum/LayarShared';
+import { ChangePasswordScreen, NotificationSettingsScreen, AddAddressScreen } from './components/AppScreens'; 
+import { 
+  dbFetchInventory, 
+  dbFetchReviews, 
+  dbFetchHistory, 
+  dbFetchReports, 
+  dbFetchAddresses, 
+  dbFetchAllUsers,
+  dbFetchNotifications,
+  dbFetchSavedItems
+} from './services/databaseService';
+
+// --- INITIAL GLOBAL STATE (EMPTY) ---
+// Semua data sekarang dimulai dari kosong dan akan diisi oleh fetch dari Database.
+
+const INITIAL_GLOBAL_STATE = {
+  user: null, 
+  savedItems: [],
+  qualityHistory: [],
+  reviews: [], 
+  partnerInventory: [], 
+  currentLocationName: 'Jakarta Pusat',
+  addresses: [],
+  historyItems: [],
+  reports: [], 
+  allUsers: [], 
+  notifications: [] 
+};
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('LOGIN');
   const [userMode, setUserMode] = useState<'USER' | 'PARTNER' | 'ADMIN'>('USER');
   const [history, setHistory] = useState<ScreenName[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isAppLoading, setIsAppLoading] = useState(true);
   
-  // GLOBAL STATE INITIALIZATION
-  const [globalState, setGlobalState] = useState<any>({
-    user: { name: 'Budi Santoso', email: 'user@gmail.com', phone: '+62 812-3456-7890', avatar: 'https://picsum.photos/200/200?random=1', role: 'USER' },
-    savedItems: [],
-    qualityHistory: [],
-    partnerInventory: [
-      { 
-        id: 1, 
-        name: "Roti Manis & Donat Sisa Produksi", 
-        partnerName: "Bakery Pagi Sore", 
-        partnerAvatar: "https://picsum.photos/100/100?random=1",
-        status: "Buka", 
-        distance: "0.5 km",
-        serviceStart: "17:00",
-        serviceEnd: "21:00",
-        amountValue: 5, 
-        amountUnit: "Paket",
-        category: "Roti & Kue",
-        image: "https://picsum.photos/400/200?random=101", 
-        deliveryType: 'pickup',
-        description: "Roti sisa produksi hari ini, masih sangat lembut dan layak konsumsi.",
-        ingredients: "Tepung, Gula, Telur, Mentega",
-        qualityPercentage: 95,
-        rating: 4.8
-      },
-      { 
-        id: 2, 
-        name: "Nasi Lauk Campur (Layak Makan)", 
-        partnerName: "Restoran Padang Murah", 
-        partnerAvatar: "https://picsum.photos/100/100?random=2",
-        status: "Buka", 
-        distance: "1.2 km",
-        serviceStart: "15:00",
-        serviceEnd: "17:00",
-        amountValue: 2, 
-        amountUnit: "Porsi",
-        category: "Makanan Berat",
-        image: "https://picsum.photos/400/200?random=102", 
-        deliveryType: 'delivery',
-        description: "Nasi dengan lauk ayam dan sayur nangka sisa makan siang.",
-        ingredients: "Nasi, Ayam, Santan, Cabai, Nangka",
-        qualityPercentage: 88,
-        rating: 4.5
-      },
-      { 
-        id: 3, 
-        name: "Paket Buah Potong & Jus", 
-        partnerName: "Toko Buah Segar Jaya", 
-        partnerAvatar: "https://picsum.photos/100/100?random=3",
-        status: "Buka", 
-        distance: "2.0 km",
-        serviceStart: "16:00",
-        serviceEnd: "19:00",
-        amountValue: 8, 
-        amountUnit: "Paket",
-        category: "Sayur & Buah",
-        image: "https://picsum.photos/400/200?random=103", 
-        deliveryType: 'pickup',
-        description: "Buah potong segar yang sudah dipotong namun belum terjual.",
-        ingredients: "Semangka, Melon, Nanas",
-        qualityPercentage: 92,
-        rating: 4.9
-      },
-      { 
-        id: 4, 
-        name: "Es Kopi Susu Gula Aren", 
-        partnerName: "Kopi Senja", 
-        partnerAvatar: "https://picsum.photos/100/100?random=4",
-        status: "Buka", 
-        distance: "0.8 km",
-        serviceStart: "20:00",
-        serviceEnd: "22:00",
-        amountValue: 4, 
-        amountUnit: "Cup",
-        category: "Minuman",
-        image: "https://picsum.photos/400/200?random=104", 
-        deliveryType: 'delivery',
-        description: "Kopi susu gula aren salah buat order, kondisi masih tertutup rapat.",
-        ingredients: "Kopi, Susu, Gula Aren",
-        qualityPercentage: 100,
-        rating: 4.7
+  // Persist Global State
+  const [globalState, setGlobalState] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('food_ai_state');
+        // Jika ada data tersimpan, gunakan. Jika tidak, gunakan initial state bersih.
+        return saved ? JSON.parse(saved) : INITIAL_GLOBAL_STATE;
+      } catch (e) {
+        console.error("Failed to load state", e);
+        return INITIAL_GLOBAL_STATE;
       }
-    ], 
-    currentLocationName: 'Jakarta Pusat',
-    addresses: [
-      { id: 1, title: 'Rumah', desc: 'Jl. Melati No. 12, Jakarta Selatan', type: 'home', receiver: 'Budi Santoso', phone: '+62 812-3456-7890' },
-      { id: 2, title: 'Kantor', desc: 'Gedung Pencakar Langit Lt. 5, Jakarta Pusat', type: 'office', receiver: 'Budi Santoso', phone: '+62 812-3456-7890' }
-    ],
-    historyItems: [
-      { id: 101, name: "Bakery Pagi Sore", item: "5x Roti Manis", date: "28 Okt 2024", price: "Rp 25.000", status: "Selesai", type: 'pickup', img: 1 },
-      { id: 104, name: "Sate Khas Senayan", item: "10 Tusuk Sate", date: "Hari ini", price: "Rp 50.000", status: "Dikemas", type: 'delivery', img: 4 }
-    ]
+    }
+    return INITIAL_GLOBAL_STATE;
   });
+
+  const updateGlobalState = (key: string, value: any) => {
+    setGlobalState((prev: any) => {
+      const newState = { ...prev, [key]: value };
+      localStorage.setItem('food_ai_state', JSON.stringify(newState));
+      return newState;
+    });
+  };
+
+  // STAGE 2-6: Reusable Refresh Function
+  const refreshAppState = async () => {
+    setIsAppLoading(true);
+    try {
+      // 1. Ambil Inventory & Review (Public)
+      const [inventory, reviews] = await Promise.all([
+         dbFetchInventory(),
+         dbFetchReviews()
+      ]);
+
+      if (inventory && Array.isArray(inventory)) updateGlobalState('partnerInventory', inventory);
+      if (reviews && Array.isArray(reviews)) updateGlobalState('reviews', reviews);
+
+      // 2. Data Spesifik User Login
+      if (globalState.user) {
+        // Fetch History
+        const identifier = globalState.user.role === 'USER' ? globalState.user.email : globalState.user.name;
+        const historyData = await dbFetchHistory(globalState.user.role, identifier);
+        if (historyData && Array.isArray(historyData)) updateGlobalState('historyItems', historyData);
+
+        // Fetch Notifications (All Roles)
+        const notifs = await dbFetchNotifications(globalState.user.email);
+        if (notifs && Array.isArray(notifs)) updateGlobalState('notifications', notifs);
+
+        // Fetch User Specific Data
+        if (globalState.user.role === 'USER') {
+           const [addresses, saved] = await Promise.all([
+             dbFetchAddresses(globalState.user.email),
+             dbFetchSavedItems(globalState.user.email)
+           ]);
+           if (addresses && Array.isArray(addresses)) updateGlobalState('addresses', addresses);
+           if (saved && Array.isArray(saved)) updateGlobalState('savedItems', saved);
+        }
+
+        // Fetch Admin Data (Admin Only)
+        if (globalState.user.role === 'ADMIN') {
+           const [reports, users] = await Promise.all([
+             dbFetchReports(),
+             dbFetchAllUsers()
+           ]);
+           if (reports && Array.isArray(reports)) updateGlobalState('reports', reports);
+           if (users && Array.isArray(users)) updateGlobalState('allUsers', users);
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Gagal refresh data:", error);
+      return false;
+    } finally {
+      setIsAppLoading(false);
+    }
+  };
+
+  // Trigger Refresh saat User Login berubah
+  useEffect(() => {
+    if (globalState.user) {
+       refreshAppState();
+    }
+  }, [globalState.user?.email, globalState.user?.role]);
+
+  // STAGE 1: Fetch Public Data on Mount
+  useEffect(() => {
+    const initAppData = async () => {
+      await refreshAppState();
+      
+      // Cek login status dari localStorage untuk set screen awal
+      if (globalState.user) {
+         setUserMode(globalState.user.role || 'USER');
+         // Jika user sudah login, arahkan ke Home/Dashboard bukan Login
+         if (currentScreen === 'LOGIN') {
+           setCurrentScreen(globalState.user.role === 'ADMIN' ? 'ADMIN_DASHBOARD' : globalState.user.role === 'PARTNER' ? 'PARTNER_DASHBOARD' : 'HOME');
+         }
+      }
+    };
+
+    initAppData();
+  }, []); // Run once on mount
 
   const navigate = (screen: ScreenName) => {
     setHistory((prev) => [...prev, currentScreen]);
@@ -118,189 +174,135 @@ const App: React.FC = () => {
     setHistory((prev) => {
       const newHistory = [...prev];
       const previousScreen = newHistory.pop();
-      if (previousScreen) {
-        setCurrentScreen(previousScreen);
-      }
+      if (previousScreen) setCurrentScreen(previousScreen);
       return newHistory;
     });
   };
 
-  const updateGlobalState = (key: string, value: any) => {
-     setGlobalState((prev: any) => ({ ...prev, [key]: value }));
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  
+  const handleLogout = () => { 
+    setUserMode('USER'); 
+    setCurrentScreen('LOGIN'); 
+    setHistory([]); 
+    localStorage.removeItem('food_ai_state');
+    // Reset ke initial state tapi pertahankan struktur
+    setGlobalState(INITIAL_GLOBAL_STATE); 
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+  // Handle Login Success (memperbarui global state dengan data user dari DB)
+  const handleLoginSuccess = (role: 'USER' | 'PARTNER' | 'ADMIN', userData?: any) => {
+     // Gunakan data user asli dari database
+     updateGlobalState('user', userData || { ...globalState.user, role });
+     setUserMode(role);
+     setCurrentScreen(role === 'ADMIN' ? 'ADMIN_DASHBOARD' : role === 'PARTNER' ? 'PARTNER_DASHBOARD' : 'HOME');
   };
 
-  // --- ADMIN DESKTOP LAYOUT ---
+  if (isAppLoading && currentScreen === 'LOGIN' && !globalState.user) {
+     return (
+       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="flex flex-col items-center gap-4">
+             <Loader2 size={40} className="animate-spin text-primary" />
+             <p className="text-sm font-bold text-slate-500">Menghubungkan ke Server...</p>
+          </div>
+       </div>
+     );
+  }
+
   if (userMode === 'ADMIN') {
-    const renderAdminContent = () => {
-      switch (currentScreen) {
-        case 'ADMIN_DASHBOARD': return <AdminDashboard navigate={setCurrentScreen} />;
-        case 'ADMIN_USERS': return <AdminUsers navigate={setCurrentScreen} />;
-        case 'ADMIN_PRODUCTS': return <AdminProducts navigate={setCurrentScreen} />;
-        case 'ADMIN_REPORTS': return <AdminReports navigate={setCurrentScreen} />;
-        case 'ADMIN_SETTINGS': return <AdminSettings navigate={setCurrentScreen} />;
-        default: return <AdminDashboard navigate={setCurrentScreen} />;
-      }
-    };
-
     return (
       <div className={`flex min-h-screen font-sans ${isDarkMode ? 'dark bg-gray-950 text-white' : 'bg-gray-50 text-slate-800'}`}>
-        <AdminSidebar 
-          currentScreen={currentScreen} 
-          navigate={setCurrentScreen} 
-          onLogout={() => {
-            setUserMode('USER');
-            setCurrentScreen('LOGIN');
-            setHistory([]);
-          }}
-        />
+        <SidebarAdmin currentScreen={currentScreen} navigate={setCurrentScreen} onLogout={handleLogout} />
         <main className="flex-1 p-8 overflow-y-auto h-screen">
-          {renderAdminContent()}
+          {(() => {
+            switch (currentScreen) {
+              case 'ADMIN_DASHBOARD': return <LayarDashboardAdmin globalState={globalState} />;
+              case 'ADMIN_USERS': return <LayarKelolaPengguna globalState={globalState} />;
+              case 'ADMIN_PRODUCTS': return <LayarKelolaProduk globalState={globalState} />;
+              case 'ADMIN_REPORTS': return <LayarModerasiLaporan globalState={globalState} />;
+              case 'ADMIN_SETTINGS': return <LayarPengaturanSistem />;
+              default: return <LayarDashboardAdmin globalState={globalState} />;
+            }
+          })()}
         </main>
       </div>
     );
   }
 
-  // --- MOBILE LAYOUT (USER & PARTNER) ---
-  const renderMobileScreen = () => {
-    const props = {
-      navigate,
-      goBack,
-      globalState,
-      setGlobalState: updateGlobalState,
-      isDarkMode,
-      toggleTheme,
-      onLogout: () => {
-        // Reset state aplikasi
-        setUserMode('USER');
-        setCurrentScreen('LOGIN');
-        setHistory([]);
-        // Reset data user di global state agar bersih saat login kembali
-        updateGlobalState('user', { name: '', email: '', role: 'USER', avatar: '' });
-      }
-    };
+  const commonProps = { navigate, goBack, globalState, setGlobalState: updateGlobalState, isDarkMode, toggleTheme, onLogout: handleLogout };
 
+  const renderScreen = () => {
     switch (currentScreen) {
-      case 'LOGIN': return <LoginScreen navigate={navigate} onLoginSuccess={(role) => { updateGlobalState('user', { ...globalState.user, role }); setUserMode(role); setHistory([]); setCurrentScreen(role === 'ADMIN' ? 'ADMIN_DASHBOARD' : role === 'PARTNER' ? 'PARTNER_DASHBOARD' : 'HOME'); }} />;
+      case 'LOGIN': return <LoginScreen navigate={navigate} onLoginSuccess={handleLoginSuccess} />;
       case 'SIGNUP': return <SignupScreen navigate={navigate} />;
       case 'FORGOT_PASSWORD': return <ForgotPasswordScreen navigate={navigate} />;
       case 'VERIFICATION': return <VerificationScreen navigate={navigate} />;
       case 'NEW_PASSWORD': return <NewPasswordScreen navigate={navigate} />;
-      
-      case 'HOME': return <HomeScreen {...props} />;
-      // Render different profile based on user mode
-      case 'PROFILE': 
-        return userMode === 'PARTNER' 
-          ? <PartnerProfileScreen {...props} /> 
-          : <UserProfileScreen {...props} />;
-          
-      case 'EDIT_PROFILE': return <EditProfileScreen {...props} />;
-      case 'CHANGE_PASSWORD': return <ChangePasswordScreen {...props} />;
-      case 'NOTIFICATION_SETTINGS': return <NotificationSettingsScreen {...props} />;
-      case 'ADD_ADDRESS': return <AddAddressScreen {...props} />;
-      case 'CHECK_QUALITY': return <QualityCheckScreen {...props} />;
-      case 'NOTIFICATIONS': return <NotificationScreen {...props} />;
-      case 'HELP_FAQ': return <HelpScreen {...props} />;
-      case 'MAP_VIEW': return <MapViewScreen {...props} />;
-      case 'PARTNER_DETAIL': return <PartnerDetailScreen {...props} />;
-      case 'RESERVATION_FORM': return <ReservationFormScreen {...props} />;
-      case 'RESERVATION_SUCCESS': return <ReservationSuccessScreen {...props} />;
-      case 'IMPACT_REPORT': return <ImpactReportScreen {...props} />;
-      case 'HISTORY': return <HistoryScreen {...props} />;
-      case 'EXPLORE': return <ExploreScreen {...props} />;
-      case 'LOCATION_SELECT': return <LocationSelectScreen {...props} />;
-      case 'CREATE_REQUEST': return <CreateRequestScreen {...props} />;
-      
-      case 'PARTNER_DASHBOARD': return <PartnerDashboard navigate={navigate} globalState={globalState} setGlobalState={updateGlobalState} />;
-      case 'PARTNER_INVENTORY': return <PartnerInventory navigate={navigate} globalState={globalState} setGlobalState={updateGlobalState} />;
-      case 'TRANSACTIONS': return <PartnerTransactions navigate={navigate} globalState={globalState} setGlobalState={updateGlobalState} />;
-      case 'UPLOAD_PRODUCT': return <UploadProduct navigate={navigate} globalState={globalState} setGlobalState={updateGlobalState} />;
-      case 'SUCCESS': return <SuccessScreen navigate={navigate} globalState={globalState} setGlobalState={updateGlobalState} />;
-      
+      // Pass refresh function to Home
+      case 'HOME': return <LayarBeranda {...commonProps} onRefresh={refreshAppState} isRefreshing={isAppLoading} />;
+      case 'PROFILE': return userMode === 'PARTNER' ? <LayarProfilMitra {...commonProps} /> : <LayarProfilPenerima {...commonProps} />;
+      case 'EDIT_PROFILE': return <LayarEditProfil {...commonProps} />;
+      case 'CHANGE_PASSWORD': return <ChangePasswordScreen {...commonProps} />;
+      case 'NOTIFICATION_SETTINGS': return <NotificationSettingsScreen {...commonProps} />;
+      case 'ADD_ADDRESS': return <AddAddressScreen {...commonProps} />;
+      case 'CHECK_QUALITY': return <LayarQualityCheck {...commonProps} />;
+      case 'NOTIFICATIONS': return <LayarNotifikasi goBack={goBack} globalState={globalState} />;
+      case 'HELP_FAQ': return <LayarFAQ goBack={goBack} />;
+      case 'MAP_VIEW': return <LayarPeta {...commonProps} />;
+      case 'PARTNER_DETAIL': return <LayarDetailMitra {...commonProps} />;
+      case 'REPORT_PRODUCT': return <LayarLaporProduk {...commonProps} />;
+      case 'RESERVATION_FORM': return <LayarFormReservasi {...commonProps} />;
+      case 'RESERVATION_SUCCESS': return <LayarSuksesReservasi {...commonProps} />;
+      case 'IMPACT_REPORT': return <LayarLaporanDampak {...commonProps} />;
+      case 'HISTORY': return <LayarRiwayatPesanan {...commonProps} />;
+      case 'RATING_HISTORY': return <LayarRiwayatUlasan {...commonProps} />;
+      case 'EXPLORE': return <LayarEksplorasi {...commonProps} viewMode="ALL" />;
+      case 'SAVED_ITEMS': return <LayarEksplorasi {...commonProps} viewMode="SAVED" />;
+      case 'LOCATION_SELECT': return <LayarPilihLokasi {...commonProps} />;
+      case 'CREATE_REQUEST': return <LayarBuatPermintaan {...commonProps} />;
+      case 'PARTNER_DASHBOARD': return <LayarDashboardMitra {...commonProps} />;
+      case 'PARTNER_INVENTORY': return <LayarInventoryMitra {...commonProps} />;
+      case 'TRANSACTIONS': return <LayarTransaksiMitra {...commonProps} />;
+      case 'UPLOAD_PRODUCT': return <LayarUploadProduk {...commonProps} />;
+      case 'SUCCESS': return <LayarBerhasilUpload {...commonProps} />;
       default: return <LoginScreen navigate={navigate} />;
     }
   };
 
-  const isMainMobileScreen = [
-    'HOME', 'PROFILE', 'CHECK_QUALITY', 
-    'PARTNER_DASHBOARD', 'PARTNER_INVENTORY', 'TRANSACTIONS'
-  ].includes(currentScreen);
+  const isMainScreen = ['HOME', 'PROFILE', 'PARTNER_DASHBOARD', 'PARTNER_INVENTORY', 'TRANSACTIONS', 'CHECK_QUALITY'].includes(currentScreen);
 
   return (
     <div className={`min-h-screen bg-gray-100 flex items-center justify-center p-0 md:p-4 font-sans ${isDarkMode ? 'dark' : ''}`}>
       <div className={`w-full h-[100dvh] md:h-[844px] md:w-[390px] bg-white md:rounded-[40px] shadow-2xl overflow-hidden relative flex flex-col text-slate-900 dark:text-white transition-colors duration-300`}>
-        
-        {/* Main Content Area */}
         <div className="flex-1 overflow-hidden relative bg-white dark:bg-gray-900 transition-colors duration-300">
-          {renderMobileScreen()}
+          {renderScreen()}
         </div>
-
-        {/* Bottom Navigation */}
-        {isMainMobileScreen && (
-          <div className="absolute bottom-0 left-0 w-full bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 px-4 py-4 flex justify-evenly items-center z-50 rounded-t-2xl shadow-[0_-5px_10px_rgba(0,0,0,0.02)] transition-colors duration-300">
+        
+        {isMainScreen && (
+          <div className="absolute bottom-0 left-0 w-full bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 px-4 py-4 flex justify-evenly items-center z-50 rounded-t-2xl shadow-lg transition-colors">
              {userMode === 'USER' && (
                <>
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('HOME'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'HOME' ? 'text-primary' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                 >
-                   <Home size={24} strokeWidth={currentScreen === 'HOME' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Beranda</span>
+                 <button onClick={() => { setHistory([]); setCurrentScreen('HOME'); }} className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'HOME' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                   <Home size={24} /> <span className="text-[10px] font-medium">Beranda</span>
                  </button>
-                 
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('CHECK_QUALITY'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'CHECK_QUALITY' ? 'text-primary' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                 >
-                   <CheckCircle size={24} strokeWidth={currentScreen === 'CHECK_QUALITY' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Cek Kualitas</span>
-                 </button>
-                 
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('PROFILE'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PROFILE' ? 'text-primary' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                 >
-                   <UserIcon size={24} strokeWidth={currentScreen === 'PROFILE' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Profil</span>
+                 <button onClick={() => { setHistory([]); setCurrentScreen('PROFILE'); }} className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PROFILE' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}>
+                   <UserIcon size={24} /> <span className="text-[10px] font-medium">Profil</span>
                  </button>
                </>
              )}
-
              {userMode === 'PARTNER' && (
                <>
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('PARTNER_DASHBOARD'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PARTNER_DASHBOARD' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-                 >
-                   <Home size={24} strokeWidth={currentScreen === 'PARTNER_DASHBOARD' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Beranda</span>
+                 <button onClick={() => { setHistory([]); setCurrentScreen('PARTNER_DASHBOARD'); }} className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PARTNER_DASHBOARD' || currentScreen === 'CHECK_QUALITY' ? 'text-primary' : 'text-gray-400'}`}>
+                   <Home size={24} /> <span className="text-[10px] font-medium">Beranda</span>
                  </button>
-                 
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('TRANSACTIONS'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'TRANSACTIONS' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-                 >
-                   <FileText size={24} strokeWidth={currentScreen === 'TRANSACTIONS' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Transaksi</span>
+                 <button onClick={() => { setHistory([]); setCurrentScreen('TRANSACTIONS'); }} className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'TRANSACTIONS' ? 'text-primary' : 'text-gray-400'}`}>
+                   <FileText size={24} /> <span className="text-[10px] font-medium">Transaksi</span>
                  </button>
-                 
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('PARTNER_INVENTORY'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PARTNER_INVENTORY' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-                 >
-                   <Store size={24} strokeWidth={currentScreen === 'PARTNER_INVENTORY' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Mitra</span>
+                 <button onClick={() => { setHistory([]); setCurrentScreen('PARTNER_INVENTORY'); }} className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PARTNER_INVENTORY' ? 'text-primary' : 'text-gray-400'}`}>
+                   <Store size={24} /> <span className="text-[10px] font-medium">Mitra</span>
                  </button>
-                 
-                 <button 
-                   onClick={() => { setHistory([]); setCurrentScreen('PROFILE'); }}
-                   className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PROFILE' ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-                 >
-                   <UserIcon size={24} strokeWidth={currentScreen === 'PROFILE' ? 2.5 : 2} />
-                   <span className="text-[10px] font-medium">Profil</span>
+                 <button onClick={() => { setHistory([]); setCurrentScreen('PROFILE'); }} className={`flex flex-col items-center gap-1 transition-colors min-w-[64px] ${currentScreen === 'PROFILE' ? 'text-primary' : 'text-gray-400'}`}>
+                   <UserIcon size={24} /> <span className="text-[10px] font-medium">Profil</span>
                  </button>
                </>
              )}

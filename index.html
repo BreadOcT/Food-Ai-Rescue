@@ -63,14 +63,17 @@
   <body>
     <div id="root"></div>
     <script>
+      // Service Worker Registration
+      // Hanya aktifkan jika browser mendukung. Error di environment sandbox akan ditangkap secara silent.
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js')
             .then(registration => {
-              console.log('SW registered: ', registration);
+              console.log('PWA Service Worker registered');
             })
-            .catch(registrationError => {
-              console.log('SW registration failed: ', registrationError);
+            .catch(err => {
+              // Ini normal di lingkungan preview/sandbox
+              console.log('Info: PWA features disabled in this environment (Preview Mode)');
             });
         });
       }

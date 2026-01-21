@@ -1,5 +1,6 @@
-import React from 'react';
-import { Loader2, ChevronLeft, ArrowRight } from 'lucide-react';
+
+import React, { useEffect, useState } from 'react';
+import { Loader2, ChevronLeft, ArrowRight, X, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 // --- ATOMS (Basic Elements) ---
 
@@ -51,12 +52,22 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   rightIcon?: React.ReactNode;
   onRightIconClick?: () => void;
   containerClassName?: string;
+  error?: string; // Menambahkan prop error
 }
 
-export const Input: React.FC<InputProps> = ({ label, icon, rightIcon, onRightIconClick, className, containerClassName, ...props }) => {
+export const Input: React.FC<InputProps> = ({ label, icon, rightIcon, onRightIconClick, className, containerClassName, error, ...props }) => {
   return (
     <div className={`w-full space-y-1.5 ${containerClassName}`}>
       {label && <label className="text-sm font-semibold text-slate-900 dark:text-white block">{label}</label>}
+      
+      {/* Area Pesan Error di atas field (Realtime Alert) */}
+      {error && (
+        <div className="flex items-center gap-1.5 text-red-500 animate-in slide-in-from-top-1 fade-in duration-200">
+           <AlertCircle size={12} />
+           <span className="text-xs font-bold">{error}</span>
+        </div>
+      )}
+
       <div className="relative">
         {icon && (
           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -64,7 +75,7 @@ export const Input: React.FC<InputProps> = ({ label, icon, rightIcon, onRightIco
           </div>
         )}
         <input 
-          className={`w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm ${icon ? 'pl-11' : ''} ${rightIcon ? 'pr-11' : ''} ${className}`}
+          className={`w-full bg-white border ${error ? 'border-red-500 focus:ring-red-200' : 'border-slate-900 dark:border-slate-100 focus:ring-primary/20 focus:border-primary'} text-black rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 transition-all text-sm ${icon ? 'pl-11' : ''} ${rightIcon ? 'pr-11' : ''} ${className}`}
           {...props}
         />
         {rightIcon && (
@@ -93,6 +104,54 @@ export const Badge: React.FC<{ children: React.ReactNode; color?: 'green' | 'red
     <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${colors[color]} ${className}`}>
       {children}
     </span>
+  );
+};
+
+// --- SNACKBAR COMPONENT ---
+
+interface SnackbarProps {
+  message: string;
+  isVisible: boolean;
+  onClose: () => void;
+  type?: 'success' | 'error' | 'info';
+}
+
+export const Snackbar: React.FC<SnackbarProps> = ({ message, isVisible, onClose, type = 'success' }) => {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+
+  if (!isVisible) return null;
+
+  const bgColors = {
+    success: 'bg-slate-900 text-white dark:bg-white dark:text-slate-900',
+    error: 'bg-red-500 text-white',
+    info: 'bg-blue-500 text-white'
+  };
+
+  const icons = {
+    success: <CheckCircle size={18} className="text-green-400 dark:text-green-600" />,
+    error: <AlertCircle size={18} className="text-white" />,
+    info: <Info size={18} className="text-white" />
+  };
+
+  return (
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm animate-in slide-in-from-bottom-5 fade-in duration-300">
+      <div className={`${bgColors[type]} px-4 py-3.5 rounded-2xl shadow-2xl flex items-center justify-between gap-3`}>
+        <div className="flex items-center gap-3">
+           {icons[type]}
+           <span className="text-xs font-bold tracking-wide">{message}</span>
+        </div>
+        <button onClick={onClose} className="opacity-60 hover:opacity-100 transition-opacity">
+          <X size={16} />
+        </button>
+      </div>
+    </div>
   );
 };
 
@@ -184,7 +243,6 @@ export const ListItem: React.FC<ListItemProps> = ({ icon, title, subtitle, right
   </div>
 );
 
-// Added missing ScreenLayoutProps interface to fix line 188 error
 interface ScreenLayoutProps {
   children: React.ReactNode;
   className?: string;
